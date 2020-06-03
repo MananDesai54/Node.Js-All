@@ -2,6 +2,7 @@ const Events = require('events');
 const utils = require('util');
 
 function Greet() {
+    Events.call(this);
     this.greeting = 'Hello Node';
 }
 
