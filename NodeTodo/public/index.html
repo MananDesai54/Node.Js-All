@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+
+    <!-- Compiled and minified JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <style>
+        .hide {
+            opacity: 0;
+            z-index: -1;
+        }
+        .show {
+            opacity: 1;
+            z-index: 1;
+        }
+        button{
+            margin-top: 10px;
+        }
+    </style>
+            
+</head>
+<body>
+    <div class="container">
+        <h3 class="pink-text">NodeTodos</h3>
+        <div class="todos-container"></div>
+    </div>
+    <script>
+        const todosContainer = document.querySelector('.todos-container');
+        const todos = [];
+        function getTodos() {
+            fetch('/api/todos/test')
+            .then(res=>res.json())
+            .then(todos=>{
+                todos.forEach((todo,index)=>{
+                    const done = todo.isDone;
+                    todosContainer.innerHTML += `
+                        <div data-id=${todo._id} class="card ${done?'green lighten-4':'red lighten-4'}">
+                            <div class="card-content">
+                                <span class="card-title">${todo.todo}</span>
+                                <p>by ${todo.username}</p>
+                                <button class="btn waves-effect waves-light green ${done?'hide':'show'} done-btn">Mark as read</button>
+                            </div>
+                        </div>
+                    `;
+                })
+            });
+        }
+        function showTodos() {
+            getTodos();
+        }
+        showTodos();
+    </script>
+</body>
+</html>
