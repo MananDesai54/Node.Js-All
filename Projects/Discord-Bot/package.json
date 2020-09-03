@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node ./src/bot.js",
-    "dev": "nodemon ./src/bot.js"
+    "bot": "nodemon ./src/bot.js"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +16,8 @@
     "discord.js": "^12.3.1",
     "dotenv": "^8.2.0",
     "memejs": "^1.2.3",
-    "random-puppy": "^1.1.0"
+    "opusscript": "0.0.7",
+    "random-puppy": "^1.1.0",
+    "ytdl-core": "^3.2.2"
   }
 }

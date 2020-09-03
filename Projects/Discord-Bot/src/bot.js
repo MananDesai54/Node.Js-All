@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Client,WebhookClient, MessageEmbed, MessageAttachment } = require('discord.js');
 const { ARRIVAL,PERSONALITY,BAD_WORDS } = require('../utils/word')();
 const axios = require('axios');
+const ytdl = require('ytdl-core');
 
 const client = new Client({
     partials:['MESSAGE','REACTION']
@@ -20,7 +21,8 @@ const { memeAsync, meme } = require('memejs');
 // const getMeme = require('random-puppy');
 
 //song
-const spotifyURL = 'https://api.spotify.com/v1/';
+// const spotifyURL = 'https://api.spotify.com/v1/';
+const servers = {};
 
 
 //speech
@@ -130,7 +132,9 @@ client.on('message', async message =>{
             message.react('👍');
             message.reply(`Prefix set to ${PREFIX}`);
         } else if(CMD_NAME === 'help') {
-            const messageEmbed = new MessageEmbed()
+            let messageEmbed;
+            if(TASK.length === 0) {
+                messageEmbed = new MessageEmbed()
                         .setColor('#0099ff')
                         .setTitle('Buggy Help')
                         .setURL('https://twitter.com/developtheweb_')
@@ -162,10 +166,65 @@ client.on('message', async message =>{
                                 name:'meme',
                                 value:`${PREFIX} meme [valid subreddit for meme(Optional)]`
                             },
+                            {
+                                name:'music',
+                                value:`${PREFIX} help music`
+                            }
                         )
                         .addField('To select role','Go in role channel and react with particular emoji')
                         .setTimestamp('For more')
                         .setFooter('For more Visit https://twitter.com/developtheweb_');
+            } else if(TASK.join(' ').toLowerCase().includes('music')) {
+                messageEmbed = new MessageEmbed()
+                        .setColor('#0099ff')
+                        .setTitle('Music Help')
+                        .setURL('https://twitter.com/developtheweb_')
+                        .setAuthor('The Buggy','https://cdn3.vectorstock.com/i/1000x1000/68/52/bug-in-code-vector-11976852.jpg','https://twitter.com/developtheweb_')
+                        .setDescription('How to play and handle musics.')
+                        .setThumbnail('https://cdn3.vectorstock.com/i/1000x1000/68/52/bug-in-code-vector-11976852.jpg')
+                        .addFields(
+                            {
+                                name:'play',
+                                value:`${PREFIX} play youtubeLink/spotifyLink/nameOfSong`
+                            },
+                            {
+                                name:'stop',
+                                value:`${PREFIX} stop`
+                            },
+                            {
+                                name:'pause',
+                                value:`${PREFIX} pause`
+                            },
+                            {
+                                name:'resume',
+                                value:`${PREFIX} resume`
+                            },
+                            {
+                                name:'next',
+                                value:`${PREFIX} next`
+                            },
+                            {
+                                name:'goto',
+                                value:`${PREFIX} goto songNumberInQueue`
+                            },
+                            {
+                                name:'seek',
+                                value:`${PREFIX} seek timeToSeek`
+                            },
+                            {
+                                name:'queue',
+                                value:`${PREFIX} queue`
+                            },
+                            {
+                                name:'playList',
+                                value:`${PREFIX} help playlist`
+                            },
+                            {
+                                name:'lyrics',
+                                value:`${PREFIX} lyrics`
+                            }
+                        )
+            }
             message.channel.send(messageEmbed);
         } else if(CMD_NAME === 'sticker') {
             const url = `${giphyURL}/stickers/search?api_key=${process.env.GIPHY_API_KEY}`;
@@ -239,11 +298,137 @@ client.on('message', async message =>{
             //         })
             // }
         } else if(CMD_NAME === 'play') {
-            axios('https://api.spotify.com/v1/search?q=closer&type=track',{
-                headers:{
-                    Authorization:process.env.SPOTIFY_API_KEY
+            // axios('https://api.spotify.com/v1/search?q=closer&type=track',{
+            //     headers:{
+            //         Authorization:process.env.SPOTIFY_API_KEY
+            //     }
+            // }).then(res => console.log(res));
+            if(!message.member.voice.channel) {
+                message.reply('Please connect to any voice channel.')
+                return
+            } else {
+                const urlPattern = /(http|ftp|https):\/\/[\w-]+(\.[\w-]+)+([\w.,@?^=%&amp;:\/~+#-]*[\w@?^=%&amp;\/~+#-])?/;
+                if(TASK.length === 0) {
+                    message.reply('Please Provide a link');
+                    return;
+                } else if(!urlPattern.test(TASK.join(' '))) {
+                    message.reply('Provided argument is either not a link or not a valid link.');
+                    return;
+                } else {
+                    if(!servers[message.guild.id]) {
+                        servers[message.guild.id] = {
+                            queue:[]
+                        }
+                    }
+                    let server = servers[message.guild.id];
+                    server.queue.push(TASK.join(''));
+                    console.log(server.queue);
+                    const messageEmbed = new MessageEmbed()
+                            .setColor('#ADFF2F')
+                            .setTitle('Added to queue at '+ server.queue.length)
+                            message.channel.send(messageEmbed);
+                    // console.log(message.guild.voiceConnection);
+                    if(!message.guild.voice?.connection) {
+                        message.member.voice.channel.join()
+                                .then(connection => {
+                                    play(connection,message,0);
+                                    const messageEmbed = new MessageEmbed()
+                                            .setColor('#00ff00')
+                                            .setTitle('Started playing')
+                                            message.channel.send(messageEmbed);
+                                })
+                    }
+
                 }
-            }).then(res => console.log(res));
+            }
+        } else if(CMD_NAME === 'stop') {
+            const server = servers[message.guild.id];
+            if(!message.member.voice.channel) {
+                message.reply('Please connect to any voice channel.')
+                return
+            } else {
+                if(!message.guild.voice.connection) {
+                    message.reply('Please add me to the voice channel.')
+                } else {
+                    for(let i=0;i<server.queue.length;i++) {
+                        server.queue.splice(i,1);
+                    }
+                    const messageEmbed = new MessageEmbed()
+                                .setColor('#ff0000')
+                                .setTitle('Stopped playing')
+                                message.channel.send(messageEmbed);
+                    message.guild.voice.connection.disconnect();
+                }
+            }
+        } else if(CMD_NAME === 'pause') {
+            const server = servers[message.guild.id];
+            if(server.dispatcher) {
+                const messageEmbed = new MessageEmbed()
+                            .setColor('#ff00ff')
+                            .setTitle('Paused')
+                            message.channel.send(messageEmbed);
+                server.dispatcher.pause();
+            } else {
+                message.reply('No song is playing.')
+            }
+        } else if(CMD_NAME === 'resume') {
+            const server = servers[message.guild.id];
+            if(server.dispatcher) {
+                const messageEmbed = new MessageEmbed()
+                            .setColor('#ff00ff')
+                            .setTitle('Resumed')
+                            message.channel.send(messageEmbed);
+                server.dispatcher.resume(); 
+            } else {
+                message.reply('No song is playing.')
+            }
+        } else if(CMD_NAME === 'next') {
+            const server = servers[message.guild.id];
+            if(server.dispatcher) {
+                const messageEmbed = new MessageEmbed()
+                            .setColor('#ff00ff')
+                            .setTitle('Playing next song')
+                            message.channel.send(messageEmbed);
+                server.dispatcher.end(); 
+            } else {
+                message.reply('No song is playing.')
+            }
+        } else if(CMD_NAME === 'clear') {
+            const server = servers[message.guild.id];
+            if(server.dispatcher) {
+                for(let i=0;i<server.queue.length;i++) {
+                    server.queue.splice(i,1);
+                }
+                const messageEmbed = new MessageEmbed()
+                            .setColor('#999999')
+                            .setTitle('Cleared current queue')
+                            message.channel.send(messageEmbed);
+                server.dispatcher.end();
+                message.channel.send('queue cleared');      
+            } else {
+                message.reply('Please connected to voice channel.')
+            }
+        } else if(CMD_NAME === 'goto') {
+            const server = servers[message.guild.id];
+            if(TASK.length === 0) {
+                message.react('😒')
+                message.reply('I cannot read your mind, provide a number')
+                return
+            }
+            const number = TASK[0];
+            if(isNaN(number)) {
+                message.react('😒')
+                message.reply( `You do not know that ${number} is not a valid number.`)
+                return
+            } else if(+number < 1 || +number > server.queue.length)
+            play(message.guild.voice.connection,message,+number-1);
+            const messageEmbed = new MessageEmbed()
+                    .setColor('#ffff00')
+                    .setTitle(`Playing ${number} number song in queue.`)
+            message.channel.send(messageEmbed);
+        } else if(CMD_NAME === 'playlist') {
+            //seek ,queue ,goto ,playlist
+            //spotify music api
         }
     } else {
         let badUsed = false;
@@ -343,5 +528,29 @@ client.on('messageReactionRemove',(reaction,user)=> {
         }
     }
 })
+
+
+function play(connection,message,numberOfSong) {
+    let server = servers[message.guild.id];
+    server.dispatcher = connection.play(
+        ytdl(server.queue[numberOfSong],{
+            filter:'audioonly'
+        })
+    );
+
+    server.dispatcher.on("finish",()=>{
+        if(server.queue[numberOfSong+1]) {
+            play(connection,message,numberOfSong+1);
+        } else {
+            if(server.queue.length === 0) {
+                connection.disconnect();
+            } else {
+                play(connection,message,0)
+            }
+        }
+        server.queue.splice(numberOfSong,1);
+        console.log(server.queue);
+    })
+}
 
 client.login(process.env.DISCORDJS_BOT_TOKEN);
