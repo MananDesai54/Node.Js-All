@@ -16,6 +16,7 @@
     "discord.js": "^12.3.1",
     "dotenv": "^8.2.0",
     "memejs": "^1.2.3",
+    "mongoose": "^5.10.3",
     "opusscript": "0.0.7",
     "random-puppy": "^1.1.0",
     "ytdl-core": "^3.2.2"

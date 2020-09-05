@@ -3,6 +3,8 @@ const { Client,WebhookClient, MessageEmbed, MessageAttachment } = require('disco
 const { ARRIVAL,PERSONALITY,BAD_WORDS } = require('../utils/word')();
 const axios = require('axios');
 const ytdl = require('ytdl-core');
+const Playlist = require('../models/model');
+const connect = require('../config/config');
 
 const client = new Client({
     partials:['MESSAGE','REACTION']
@@ -23,6 +25,10 @@ const { memeAsync, meme } = require('memejs');
 //song
 // const spotifyURL = 'https://api.spotify.com/v1/';
 const servers = {};
+let nowPlaying = 0;
+
+//playlist
+connect();
 
 
 //speech
@@ -79,7 +85,7 @@ client.on('message', async message =>{
                         .substring(PREFIX.length)
                         .split(/\s+/);
         const TASK = args;
-        CMD_NAME = CMD_NAME.trim();
+        CMD_NAME = CMD_NAME.trim().toLowerCase();
         console.log(CMD_NAME,TASK);
         if(CMD_NAME === "kick") {
 
@@ -332,10 +338,10 @@ client.on('message', async message =>{
                         message.member.voice.channel.join()
                                 .then(connection => {
                                     play(connection,message,0);
-                                    const messageEmbed = new MessageEmbed()
-                                            .setColor('#00ff00')
-                                            .setTitle('Started playing')
-                                            message.channel.send(messageEmbed);
+                                    // const messageEmbed = new MessageEmbed()
+                                    //         .setColor('#00ff00')
+                                    //         .setTitle('Started playing')
+                                    // message.channel.send(messageEmbed);
                                 })
                     }
 
@@ -345,7 +351,7 @@ client.on('message', async message =>{
             const server = servers[message.guild.id];
             if(!message.member.voice.channel) {
                 message.reply('Please connect to any voice channel.')
-                return
+                return;
             } else {
                 if(!message.guild.voice.connection) {
                     message.reply('Please add me to the voice channel.')
@@ -417,17 +423,157 @@ client.on('message', async message =>{
             }
             const number = TASK[0];
             if(isNaN(number)) {
-                message.react('😒')
-                message.reply( `You do not know that ${number} is not a valid number.`)
-                return
-            } else if(+number < 1 || +number > server.queue.length)
+                if(number === 'first' || number === 'last') {
+                    if(number === 'first') {
+                        play(message.guild.voice.connection,message,0);
+                    } else {
+                        play(message.guild.voice.connection,message,server.queue.length-1);
+                    }
+                } else {
+                    message.react('😒')
+                    message.reply( `You do not know that ${number} is not a valid number.`)
+                    return
+                }
+            } else if(+number < 1 || +number > server.queue.length) {
+                message.reply('No song available at that number.');
+                return;
+            }
             play(message.guild.voice.connection,message,+number-1);
             const messageEmbed = new MessageEmbed()
                     .setColor('#ffff00')
                     .setTitle(`Playing ${number} number song in queue.`)
             message.channel.send(messageEmbed);
-        } else if(CMD_NAME === 'playlist') {
-            //seek ,queue ,goto ,playlist
+        } else if(CMD_NAME === 'queue') {
+
+            const server = servers[message.guild.id];
+            const queueSongs = []
+            server.queue.forEach((song,index) => {
+                queueSongs.push({
+                    name:`Song ${index+1}`,
+                    value:song
+                })
+            });
+
+            const messageEmbed = new MessageEmbed()
+                        .setColor('#e76f51')
+                        .addFields(...queueSongs);
+            
+            message.channel.send(messageEmbed);
+
+        } else if(CMD_NAME === 'np') {
+            message.reply(`Now Playing ${nowPlaying-1} - ${servers[message.guild.id].queue[nowPlaying]}`);
+        } else if(CMD_NAME === 'create') {
+            let user = await Playlist.findOne({
+                discordId:message.author.id
+            });
+            if(!user) {
+                user = new Playlist();
+                user.discordId = message.author.id;
+
+            }            
+            const playlist = await user.playlist.find(plist => plist.name === TASK.join(' ').toLowerCase());
+            if(playlist) {
+                message.reply(`Playlist with name ${TASK.join(' ')} already exist.`);
+                return;
+            }
+            user.playlist.push({
+                name:TASK.join(' ').toLowerCase(),
+                songs:[]
+            })
+            await user.save();
+            message.channel.send('Playlist created to see all playlists type `'+PREFIX+' playlists`');
+            const messageEmbed = new MessageEmbed()
+                        .setColor('#e76f51')
+                        .setTitle(TASK.join(' ')+' created');
+            
+            message.channel.send(messageEmbed);
+            return console.log(user);
+        } else if(CMD_NAME === 'add') {
+            let user = await Playlist.findOne({
+                discordId:message.author.id
+            });
+            console.log(user);
+            
+            if(!user) {
+                message.reply('Please create at least one playlist.');
+                return
+            }
+            const playlistIndex = await user.playlist.findIndex(plist => plist.name === TASK[0].toLowerCase());
+            console.log(playlistIndex);
+            if(playlistIndex === -1) {
+                message.reply(`Playlist with name ${TASK[0]} does not exist.`);
+                return;
+            }
+
+            await user.playlist[playlistIndex].songs.push(TASK[1]);
+            message.channel.send('Successfully added to show playlist type `'+PREFIX+' playlists show PLAYLIST_NAME`');
+            await user.save();
+        } else if(CMD_NAME === 'playlists') {
+            const user = await Playlist.findOne({
+                discordId : message.author.id
+            });
+            if(!user) {
+                message.reply('Please create at-least one playlist by `create'+PREFIX+'playlist`');
+                return;
+            }
+            if(TASK.length === 0) {
+                const playlists = await user.playlist.map(plist => ({
+                    name:plist.name,
+                    value:`Total song/s are ${plist.songs.length}`
+                }))
+                const messageEmbed = new MessageEmbed()
+                        .setColor('#457b9d')
+                        .setTitle('Playlists')
+                        .addFields(...playlists)
+                        .setFooter(`To see more descriptive type, ${PREFIX+` playlists show PLAYLIST_NAME`}`);
+                
+                message.channel.send(messageEmbed);
+                        
+            } else if(TASK[0] === 'show') {
+                const playlistName = TASK[1];
+                const playlistIndex = await user.playlist.findIndex(plist => plist.name === playlistName);
+                if(playlistIndex === -1) {
+                    message.reply('No playlist with name '+ playlistName);
+                    return;
+                }
+                const songs = await user.playlist[playlistIndex].songs.map((song,index) => ({
+                    name:index+1,
+                    value:song
+                }));
+
+                const messageEmbed = new MessageEmbed()
+                        .setColor('#457b9d')
+                        .setTitle(user.playlist[playlistIndex].name)
+                        .addFields(...songs)
+                        .setFooter(`To play any playlist type, ${PREFIX+` playlists play PLAYLIST_NAME`}`);
+                
+                message.channel.send(messageEmbed);
+            } else if(TASK[0] === 'play') {
+                const playlistName = TASK[1];
+                const playlistIndex = await user.playlist.findIndex(plist => plist.name === playlistName);
+                if(playlistIndex === -1) {
+                    message.reply('No playlist with name '+ playlistName);
+                    return;
+                }
+                if(!servers[message.guild.id]) {
+                    servers[message.guild.id] = {
+                        queue:[]
+                    }
+                }
+                const server = servers[message.guild.id];
+                server.queue = [...user.playlist[playlistIndex].songs];
+                if(!message.guild.voice?.connection) {
+                    message.member.voice.channel.join()
+                            .then(connection => {
+                                play(connection,message,0);
+                            })
+                } else {
+                    play(message.guild.voice.channel,message,0);
+                }
+            }
+        }
+        else if(CMD_NAME === 'any') {
+            //seek ,playlist , lyrics 
             //spotify music api
         }
     } else {
@@ -537,8 +683,15 @@ function play(connection,message,numberOfSong) {
             filter:'audioonly'
         })
     );
+    nowPlaying = numberOfSong;
+    const messageEmbed = new MessageEmbed()
+            .setColor('#00ff00')
+            .setTitle('Playing next song')
+    message.channel.send(messageEmbed);
 
     server.dispatcher.on("finish",()=>{
+        server.queue.splice(numberOfSong,1);
+        console.log(server.queue);
         if(server.queue[numberOfSong+1]) {
             play(connection,message,numberOfSong+1);
         } else {
@@ -548,8 +701,6 @@ function play(connection,message,numberOfSong) {
                 play(connection,message,0)
             }
         }
-        server.queue.splice(numberOfSong,1);
-        console.log(server.queue);
     })
 }
 
