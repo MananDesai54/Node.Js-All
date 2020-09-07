@@ -5,6 +5,7 @@ const axios = require('axios');
 const ytdl = require('ytdl-core');
 const Playlist = require('../models/model');
 const connect = require('../config/config');
+const getYoutubeId = require('get-youtube-id');
 
 const client = new Client({
     partials:['MESSAGE','REACTION']
@@ -318,6 +319,8 @@ client.on('message', async message =>{
                     message.reply('Please Provide a link');
                     return;
                 } else if(!urlPattern.test(TASK.join(' '))) {
+                    // const id = ytdl.getVideoID(TASK.join(' '));
+                    // console.log(id);
                     message.reply('Provided argument is either not a link or not a valid link.');
                     return;
                 } else {
@@ -424,15 +427,17 @@ client.on('message', async message =>{
             const number = TASK[0];
             if(isNaN(number)) {
                 if(number === 'first' || number === 'last') {
+                    console.log('Hello');
                     if(number === 'first') {
                         play(message.guild.voice.connection,message,0);
                     } else {
                         play(message.guild.voice.connection,message,server.queue.length-1);
                     }
+                    return;
                 } else {
                     message.react('😒')
                     message.reply( `You do not know that ${number} is not a valid number.`)
-                    return
+                    return;
                 }
             } else if(+number < 1 || +number > server.queue.length) {
                 message.reply('No song available at that number.');
@@ -562,6 +567,7 @@ client.on('message', async message =>{
                 }
                 const server = servers[message.guild.id];
                 server.queue = [...user.playlist[playlistIndex].songs];
+                message.channel.send(`Playing playlist ${playlistName}`);
                 if(!message.guild.voice?.connection) {
                     message.member.voice.channel.join()
                             .then(connection => {
@@ -571,10 +577,15 @@ client.on('message', async message =>{
                     play(message.guild.voice.channel,message,0);
                 }
             }
+        } else if(CMD_NAME === 'listen') {
+            if(!message.member.voice.channel) {
+                message.reply('Please connect to any voice channel.')
+                return
+            } 
         }
         else if(CMD_NAME === 'any') {
-            //seek ,playlist , lyrics 
-            //spotify music api
+            //seek ,playlist , lyrics ,speech to text 
+            //spotify music api , search by keyword
         }
     } else {
         let badUsed = false;
@@ -676,17 +687,25 @@ client.on('messageReactionRemove',(reaction,user)=> {
 })
 
 
-function play(connection,message,numberOfSong) {
+async function play(connection,message,numberOfSong) {
     let server = servers[message.guild.id];
+    console.log(server.queue[numberOfSong],numberOfSong);
     server.dispatcher = connection.play(
         ytdl(server.queue[numberOfSong],{
             filter:'audioonly'
         })
     );
+    const id = getYoutubeId(server.queue[numberOfSong]);
+    console.log(id);
+    
+    const videoDetails = await axios.get(`https://www.googleapis.com/youtube/v3/videos?part=id%2C+snippet&id=${id}&key=AIzaSyDNhtqfdYgOAM8tTiNSAcUWv3cFAkrN5u8`);
+    const title = await videoDetails.data.items[0]?.snippet?.localized?.title;
+    console.log(title);
+
     nowPlaying = numberOfSong;
     const messageEmbed = new MessageEmbed()
             .setColor('#00ff00')
-            .setTitle('Playing next song')
+            .setTitle('Playing - '+title)
     message.channel.send(messageEmbed);
 
     server.dispatcher.on("finish",()=>{
