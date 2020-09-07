@@ -42,6 +42,10 @@ client.on('ready',()=>{
     console.log(`${client.user.username}(${client.user.tag}) has joined , verified = ${client.user.verified}.`);
 });
 
+client.on('guildMemberSpeaking',(member,speaking) => {
+    console.log(member.user.tag,speaking);
+})
+
 client.on('guildMemberAdd',async (member)=>{
     const welcomeChannel = member.guild.channels.cache.find(ch => ch.name === 'welcome');
     if(!welcomeChannel) return;
@@ -233,7 +237,7 @@ client.on('message', async message =>{
                         )
             }
             message.channel.send(messageEmbed);
-        } else if(CMD_NAME === 'sticker') {
+        } else if(CMD_NAME === 'sticker' || CMD_NAME === 'stk') {
             const url = `${giphyURL}/stickers/search?api_key=${process.env.GIPHY_API_KEY}`;
             const type = TASK.join(' ');
             const res = await axios.get(`${url}&q=${type}`);
@@ -304,7 +308,18 @@ client.on('message', async message =>{
             //             message.reply('Invalid subreddit');
             //         })
             // }
-        } else if(CMD_NAME === 'play') {
+        } else if(CMD_NAME === 'join'){
+
+            if(!message.guild.voice?.connection) {
+                message.member.voice.channel.join()
+                        .then(connection => {
+                            message.reply('Join to the voice channel '+message.guild.voice.channel.name);
+                        })
+            } else {
+                message.reply('ALready inside the voice channel :'+message.guild.voice.channel.name);
+            }
+
+        }else if(CMD_NAME === 'play' || CMD_NAME === 'pl') {
             // axios('https://api.spotify.com/v1/search?q=closer&type=track',{
             //     headers:{
             //         Authorization:process.env.SPOTIFY_API_KEY
@@ -350,7 +365,7 @@ client.on('message', async message =>{
 
                 }
             }
-        } else if(CMD_NAME === 'stop') {
+        } else if(CMD_NAME === 'stop' || CMD_NAME === 'disconnect' || CMD_NAME === 'st' || CMD_NAME === 'dc') {
             const server = servers[message.guild.id];
             if(!message.member.voice.channel) {
                 message.reply('Please connect to any voice channel.')
@@ -359,17 +374,19 @@ client.on('message', async message =>{
                 if(!message.guild.voice.connection) {
                     message.reply('Please add me to the voice channel.')
                 } else {
-                    for(let i=0;i<server.queue.length;i++) {
-                        server.queue.splice(i,1);
+                    if(server) {
+                        for(let i=0;i<server.queue.length;i++) {
+                            server.queue.splice(i,1);
+                        }
+                        const messageEmbed = new MessageEmbed()
+                                    .setColor('#ff0000')
+                                    .setTitle('Stopped playing')
+                                    message.channel.send(messageEmbed);
                     }
-                    const messageEmbed = new MessageEmbed()
-                                .setColor('#ff0000')
-                                .setTitle('Stopped playing')
-                                message.channel.send(messageEmbed);
-                    message.guild.voice.connection.disconnect();
                 }
+                message.guild.voice.connection.disconnect();
             }
-        } else if(CMD_NAME === 'pause') {
+        } else if(CMD_NAME === 'pause' || CMD_NAME === 'pas') {
             const server = servers[message.guild.id];
             if(server.dispatcher) {
                 const messageEmbed = new MessageEmbed()
@@ -380,7 +397,7 @@ client.on('message', async message =>{
             } else {
                 message.reply('No song is playing.')
             }
-        } else if(CMD_NAME === 'resume') {
+        } else if(CMD_NAME === 'resume' || CMD_NAME === 'res') {
             const server = servers[message.guild.id];
             if(server.dispatcher) {
                 const messageEmbed = new MessageEmbed()
@@ -391,7 +408,7 @@ client.on('message', async message =>{
             } else {
                 message.reply('No song is playing.')
             }
-        } else if(CMD_NAME === 'next') {
+        } else if(CMD_NAME === 'next' || CMD_NAME === 'skip' || CMD_NAME === 'nxt' || CMD_NAME === 'skp') {
             const server = servers[message.guild.id];
             if(server.dispatcher) {
                 const messageEmbed = new MessageEmbed()
@@ -402,7 +419,7 @@ client.on('message', async message =>{
             } else {
                 message.reply('No song is playing.')
             }
-        } else if(CMD_NAME === 'clear') {
+        } else if(CMD_NAME === 'clear' || CMD_NAME === 'reset' || CMD_NAME === 'clr' || CMD_NAME === 'rst') {
             const server = servers[message.guild.id];
             if(server.dispatcher) {
                 for(let i=0;i<server.queue.length;i++) {
@@ -417,7 +434,7 @@ client.on('message', async message =>{
             } else {
                 message.reply('Please connected to voice channel.')
             }
-        } else if(CMD_NAME === 'goto') {
+        } else if(CMD_NAME === 'goto' || CMD_NAME === 'gt') {
             const server = servers[message.guild.id];
             if(TASK.length === 0) {
                 message.react('😒')
@@ -448,7 +465,7 @@ client.on('message', async message =>{
                     .setColor('#ffff00')
                     .setTitle(`Playing ${number} number song in queue.`)
             message.channel.send(messageEmbed);
-        } else if(CMD_NAME === 'queue') {
+        } else if(CMD_NAME === 'queue' || CMD_NAME === 'qu') {
 
             const server = servers[message.guild.id];
             const queueSongs = []
@@ -465,9 +482,9 @@ client.on('message', async message =>{
             
             message.channel.send(messageEmbed);
 
-        } else if(CMD_NAME === 'np') {
+        } else if(CMD_NAME === 'np' || CMD_NAME === 'now-playing') {
             message.reply(`Now Playing ${nowPlaying-1} - ${servers[message.guild.id].queue[nowPlaying]}`);
-        } else if(CMD_NAME === 'create') {
+        } else if(CMD_NAME === 'create' || CMD_NAME === 'make') {
             let user = await Playlist.findOne({
                 discordId:message.author.id
             });
@@ -577,7 +594,7 @@ client.on('message', async message =>{
                     play(message.guild.voice.channel,message,0);
                 }
             }
-        } else if(CMD_NAME === 'listen') {
+        } else if(CMD_NAME === 'listen' || CMD_NAME === 'hear') {
             if(!message.member.voice.channel) {
                 message.reply('Please connect to any voice channel.')
                 return
