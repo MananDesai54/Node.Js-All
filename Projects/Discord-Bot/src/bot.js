@@ -1,11 +1,14 @@
 require('dotenv').config();
 const { Client,WebhookClient, MessageEmbed, MessageAttachment } = require('discord.js');
-const { ARRIVAL,PERSONALITY,BAD_WORDS } = require('../utils/word')();
+const { BAD_WORDS } = require('../utils/word')();
 const axios = require('axios');
 const ytdl = require('ytdl-core');
 const Playlist = require('../models/model');
 const connect = require('../config/config');
 const getYoutubeId = require('get-youtube-id');
+const { checkVoiceConnected,toggleRole } = require('../utils/utils');
+const { help,musicHelp,playlistHelp } = require('../utils/help');
+const welcomeGreet = require('./welcomeGreet');
 
 const client = new Client({
     partials:['MESSAGE','REACTION']
@@ -27,16 +30,14 @@ const { memeAsync, meme } = require('memejs');
 // const spotifyURL = 'https://api.spotify.com/v1/';
 const servers = {};
 let nowPlaying = 0;
+const urlPattern = /(http|ftp|https):\/\/[\w-]+(\.[\w-]+)+([\w.,@?^=%&amp;:\/~+#-]*[\w@?^=%&amp;\/~+#-])?/;
 
 //playlist
 connect();
 
-
 //speech
 // const speech = require('@google-cloud/speech');
 // const speechClient = new speech.SpeechClient();
-
-// speechClient.recognize
 
 client.on('ready',()=>{
     console.log(`${client.user.username}(${client.user.tag}) has joined , verified = ${client.user.verified}.`);
@@ -46,43 +47,26 @@ client.on('guildMemberSpeaking',(member,speaking) => {
     console.log(member.user.tag,speaking);
 })
 
-client.on('guildMemberAdd',async (member)=>{
-    const welcomeChannel = member.guild.channels.cache.find(ch => ch.name === 'welcome');
-    if(!welcomeChannel) return;
-    welcomeChannel.send(`A ${PERSONALITY} person, ${ARRIVAL}`);
-    welcomeChannel.send(`Hey ${member.user}, Welcome To The Bug!`);
-    const res = await axios.get(`${giphyURL}/stickers/search?api_key=${process.env.GIPHY_API_KEY}&q=welcome&limit=1`);
-    const gif = res.data?.data[Math.floor(Math.random()*(res.data.data.length))]?.images?.original?.url;
-    const messageEmbed = new MessageEmbed()
-            .setColor('#0099ff')
-            .setTitle('Welcome')
-            .setImage(gif);
-    welcomeChannel.send(messageEmbed);
-    if(!member.user.bot) {
-        member.send(messageEmbed);
-        member.send(member.user.username + ' Welcome To the Server..!!');
-    }
+client.on('guildMemberAdd',welcomeGreet);
+
+client.on('messageReactionAdd',(reaction,user)=> {
+    toggleRole(reaction,user,'add');
+    //roles comment
+})
+
+client.on('messageReactionRemove',(reaction,user)=> {
+    toggleRole(reaction,user,'remove');
+    //roles comment
 })
 
 client.on('message', async message =>{
 
     if(message.author?.bot) return;
 
-    // console.log(`${message.content} from ${message.author.tag} in ${message.channel.name} server.`);
-    
-    // if(message.content.toLowerCase().includes('hello') || message.content.toLowerCase().includes('hi') || message.content.toLowerCase().includes('hey') || message.content.toLowerCase().includes('reply')) {
-    //     // message.reply('Hey, There !')
-    //     message.channel.send('Hey, There !!');
-    // }
-    // if(message.author.id === '731812740426891266') {
-    //     console.log('Hello');
-    //     message.delete();
-    // }
     if(message.content.startsWith(PREFIX)) {
         if(message.content[PREFIX.length] === ' ') {
             message.content = message.content.slice(0,PREFIX.length).concat(message.content.slice(PREFIX.length+1,message.content.length));
             console.log(message.content);
-            // return
         }
         
         let [CMD_NAME,...args] = message.content
@@ -97,13 +81,11 @@ client.on('message', async message =>{
             if (TASK.length===0) return message.reply('Please Provide an ID.')
 
             const member = message.guild.members.cache.get(TASK[0]);
-            // console.log(member);
             if(member) {
                 
                 if(!message.member.hasPermission('KICK_MEMBERS')) {
                     return message.reply('You do not have permission to kick users.');
                 }
-
                 member
                     .kick()
                     .then(res => {
@@ -127,7 +109,6 @@ client.on('message', async message =>{
                 return message.reply('You do not have permission to ban a member.');
             }
             if (TASK.length===0) return message.reply('Please Provide an ID.');
-
             try {
                 const member = await message.guild.members.ban(TASK[0]);
                 return console.log(member);
@@ -153,34 +134,7 @@ client.on('message', async message =>{
                         .setDescription('Bot to make your life bugs free.(Prefix =>)')
                         .setThumbnail('https://cdn3.vectorstock.com/i/1000x1000/68/52/bug-in-code-vector-11976852.jpg')
                         .addFields(
-                            {
-                                name:'kick',
-                                value:`${PREFIX} kick userID`
-                            },
-                            {
-                                name:'ban',
-                                value:`${PREFIX} ban userID`
-                            },
-                            {
-                                name:'help',
-                                value:`${PREFIX} help`
-                            },
-                            {
-                                name:'sticker',
-                                value:`${PREFIX} sticker topicOfSticker`
-                            },
-                            {
-                                name:'gif',
-                                value:`${PREFIX} gif topicOfSticker`
-                            },
-                            {
-                                name:'meme',
-                                value:`${PREFIX} meme [valid subreddit for meme(Optional)]`
-                            },
-                            {
-                                name:'music',
-                                value:`${PREFIX} help music`
-                            }
+                            ...help(PREFIX)
                         )
                         .addField('To select role','Go in role channel and react with particular emoji')
                         .setTimestamp('For more')
@@ -194,46 +148,18 @@ client.on('message', async message =>{
                         .setDescription('How to play and handle musics.')
                         .setThumbnail('https://cdn3.vectorstock.com/i/1000x1000/68/52/bug-in-code-vector-11976852.jpg')
                         .addFields(
-                            {
-                                name:'play',
-                                value:`${PREFIX} play youtubeLink/spotifyLink/nameOfSong`
-                            },
-                            {
-                                name:'stop',
-                                value:`${PREFIX} stop`
-                            },
-                            {
-                                name:'pause',
-                                value:`${PREFIX} pause`
-                            },
-                            {
-                                name:'resume',
-                                value:`${PREFIX} resume`
-                            },
-                            {
-                                name:'next',
-                                value:`${PREFIX} next`
-                            },
-                            {
-                                name:'goto',
-                                value:`${PREFIX} goto songNumberInQueue`
-                            },
-                            {
-                                name:'seek',
-                                value:`${PREFIX} seek timeToSeek`
-                            },
-                            {
-                                name:'queue',
-                                value:`${PREFIX} queue`
-                            },
-                            {
-                                name:'playList',
-                                value:`${PREFIX} help playlist`
-                            },
-                            {
-                                name:'lyrics',
-                                value:`${PREFIX} lyrics`
-                            }
+                            ...musicHelp(PREFIX)
+                        )
+            } else if(TASK.join(' ').toLowerCase().includes('playlist')) {
+                messageEmbed = new MessageEmbed()
+                        .setColor('#0099ff')
+                        .setTitle('Playlist Help')
+                        .setURL('https://twitter.com/developtheweb_')
+                        .setAuthor('The Buggy','https://cdn3.vectorstock.com/i/1000x1000/68/52/bug-in-code-vector-11976852.jpg','https://twitter.com/developtheweb_')
+                        .setDescription('How to create and use.')
+                        .setThumbnail('https://cdn3.vectorstock.com/i/1000x1000/68/52/bug-in-code-vector-11976852.jpg')
+                        .addFields(
+                            ...playlistHelp(PREFIX)
                         )
             }
             message.channel.send(messageEmbed);
@@ -276,38 +202,7 @@ client.on('message', async message =>{
                     .catch(err => {
                         message.reply("Network error or i don't know")
                     })
-            // if(TASK.length === 0) {
-            //     message.reply('Coming just a second');
-            //     memeAsync()
-            //         .then(meme => {
-            //             messageEmbed = new MessageEmbed()
-            //                     .setURL(meme.url)
-            //                     .setColor('ff00ff')
-            //                     .setTitle(`r\\${meme.subreddit}`)
-            //                     .setImage(meme.url);
-
-            //             message.channel.send(messageEmbed);
-            //         })
-            //         .catch(err => {
-            //             message.reply("Network error or i don't know")
-            //         })
-            // } else {
-            //     memeAsync(TASK.join(' '))
-            //         .then(meme => {
-            //             message.reply('Coming just a second');
-            //             messageEmbed = new MessageEmbed()
-            //                     .setURL(meme.url)
-            //                     .setColor('ff00ff')
-            //                     .setTitle(`r\\${meme.subreddit}`)
-            //                     .setDescription(TASK.join(' '))
-            //                     .setImage(meme.url);
-
-            //             message.channel.send(messageEmbed);
-            //         })
-            //         .catch(err => {
-            //             message.reply('Invalid subreddit');
-            //         })
-            // }
+            //meme comment in comment txt
         } else if(CMD_NAME === 'join'){
 
             if(!message.guild.voice?.connection) {
@@ -319,47 +214,65 @@ client.on('message', async message =>{
                 message.reply('ALready inside the voice channel :'+message.guild.voice.channel.name);
             }
 
+        } else if(CMD_NAME === 'tts'){
+
+            if(!checkVoiceConnected(message)) {
+                message.reply('Please connect to any voice channel.')
+                return
+            }
+            const text = TASK.join(' ');
+            if(!message.guild.voice?.connection) {
+                message.member.voice.channel.join()
+                        .then(connection => {
+                            message.channel.send(text,{
+                                tts:true
+                            })
+                        })
+            } else {
+                message.channel.send(text,{
+                    tts:true,
+                })
+            }
+
         }else if(CMD_NAME === 'play' || CMD_NAME === 'pl') {
-            // axios('https://api.spotify.com/v1/search?q=closer&type=track',{
-            //     headers:{
-            //         Authorization:process.env.SPOTIFY_API_KEY
-            //     }
-            // }).then(res => console.log(res));
-            if(!message.member.voice.channel) {
+            //play comment in comment txt
+            if(!checkVoiceConnected(message)) {
                 message.reply('Please connect to any voice channel.')
                 return
             } else {
-                const urlPattern = /(http|ftp|https):\/\/[\w-]+(\.[\w-]+)+([\w.,@?^=%&amp;:\/~+#-]*[\w@?^=%&amp;\/~+#-])?/;
                 if(TASK.length === 0) {
-                    message.reply('Please Provide a link');
+                    message.reply('Please Provide a link or keyword.');
                     return;
-                } else if(!urlPattern.test(TASK.join(' '))) {
-                    // const id = ytdl.getVideoID(TASK.join(' '));
-                    // console.log(id);
-                    message.reply('Provided argument is either not a link or not a valid link.');
-                    return;
-                } else {
+                }
+                // } else if(!urlPattern.test(TASK.join(' '))) {
+                    
+                //     message.reply('Provided argument is either not a link or not a valid link.');
+                //     return;
+                // } 
+                else {
                     if(!servers[message.guild.id]) {
                         servers[message.guild.id] = {
                             queue:[]
                         }
                     }
                     let server = servers[message.guild.id];
-                    server.queue.push(TASK.join(''));
+                    
+                    if(!urlPattern.test(TASK.join(' '))) {
+                        const videos = await axios.get('https://www.googleapis.com/youtube/v3/search?part=id&type=video&q='+TASK.join(' ')+'&key=AIzaSyDNhtqfdYgOAM8tTiNSAcUWv3cFAkrN5u8')
+                        
+                        server.queue.push('https://www.youtube.com/watch?v='+videos.data.items[0].id.videoId);
+                    } else {
+                        server.queue.push(TASK.join(''));
+                    }
                     console.log(server.queue);
                     const messageEmbed = new MessageEmbed()
                             .setColor('#ADFF2F')
                             .setTitle('Added to queue at '+ server.queue.length)
                             message.channel.send(messageEmbed);
-                    // console.log(message.guild.voiceConnection);
                     if(!message.guild.voice?.connection) {
                         message.member.voice.channel.join()
                                 .then(connection => {
                                     play(connection,message,0);
-                                    // const messageEmbed = new MessageEmbed()
-                                    //         .setColor('#00ff00')
-                                    //         .setTitle('Started playing')
-                                    // message.channel.send(messageEmbed);
                                 })
                     }
 
@@ -367,9 +280,9 @@ client.on('message', async message =>{
             }
         } else if(CMD_NAME === 'stop' || CMD_NAME === 'disconnect' || CMD_NAME === 'st' || CMD_NAME === 'dc') {
             const server = servers[message.guild.id];
-            if(!message.member.voice.channel) {
+            if(!checkVoiceConnected(message)) {
                 message.reply('Please connect to any voice channel.')
-                return;
+                return
             } else {
                 if(!message.guild.voice.connection) {
                     message.reply('Please add me to the voice channel.')
@@ -387,6 +300,11 @@ client.on('message', async message =>{
                 message.guild.voice.connection.disconnect();
             }
         } else if(CMD_NAME === 'pause' || CMD_NAME === 'pas') {
+
+            if(!checkVoiceConnected(message)) {
+                message.reply('Please connect to any voice channel.')
+                return
+            } 
             const server = servers[message.guild.id];
             if(server.dispatcher) {
                 const messageEmbed = new MessageEmbed()
@@ -398,6 +316,11 @@ client.on('message', async message =>{
                 message.reply('No song is playing.')
             }
         } else if(CMD_NAME === 'resume' || CMD_NAME === 'res') {
+            if(!checkVoiceConnected(message)) {
+                message.reply('Please connect to any voice channel.')
+                return
+            } 
+
             const server = servers[message.guild.id];
             if(server.dispatcher) {
                 const messageEmbed = new MessageEmbed()
@@ -409,6 +332,12 @@ client.on('message', async message =>{
                 message.reply('No song is playing.')
             }
         } else if(CMD_NAME === 'next' || CMD_NAME === 'skip' || CMD_NAME === 'nxt' || CMD_NAME === 'skp') {
+
+            if(!checkVoiceConnected(message)) {
+                message.reply('Please connect to any voice channel.')
+                return
+            } 
+
             const server = servers[message.guild.id];
             if(server.dispatcher) {
                 const messageEmbed = new MessageEmbed()
@@ -420,6 +349,12 @@ client.on('message', async message =>{
                 message.reply('No song is playing.')
             }
         } else if(CMD_NAME === 'clear' || CMD_NAME === 'reset' || CMD_NAME === 'clr' || CMD_NAME === 'rst') {
+
+            if(!checkVoiceConnected(message)) {
+                message.reply('Please connect to any voice channel.')
+                return
+            } 
+
             const server = servers[message.guild.id];
             if(server.dispatcher) {
                 for(let i=0;i<server.queue.length;i++) {
@@ -435,6 +370,12 @@ client.on('message', async message =>{
                 message.reply('Please connected to voice channel.')
             }
         } else if(CMD_NAME === 'goto' || CMD_NAME === 'gt') {
+
+            if(!checkVoiceConnected(message)) {
+                message.reply('Please connect to any voice channel.')
+                return
+            } 
+
             const server = servers[message.guild.id];
             if(TASK.length === 0) {
                 message.react('😒')
@@ -467,6 +408,11 @@ client.on('message', async message =>{
             message.channel.send(messageEmbed);
         } else if(CMD_NAME === 'queue' || CMD_NAME === 'qu') {
 
+            if(!checkVoiceConnected(message)) {
+                message.reply('Please connect to any voice channel.')
+                return
+            } 
+
             const server = servers[message.guild.id];
             const queueSongs = []
             server.queue.forEach((song,index) => {
@@ -483,7 +429,13 @@ client.on('message', async message =>{
             message.channel.send(messageEmbed);
 
         } else if(CMD_NAME === 'np' || CMD_NAME === 'now-playing') {
+
+            if(!checkVoiceConnected(message)) {
+                message.reply('Please connect to any voice channel.')
+                return
+            } 
             message.reply(`Now Playing ${nowPlaying-1} - ${servers[message.guild.id].queue[nowPlaying]}`);
+
         } else if(CMD_NAME === 'create' || CMD_NAME === 'make') {
             let user = await Playlist.findOne({
                 discordId:message.author.id
@@ -526,8 +478,16 @@ client.on('message', async message =>{
                 message.reply(`Playlist with name ${TASK[0]} does not exist.`);
                 return;
             }
+            let id;
+            if(urlPattern.test(TASK[1])) {
+                id = TASK[1];
+            } else {
+                const keyword = TASK.slice(1).join(' ');
+                const videos = await axios.get('https://www.googleapis.com/youtube/v3/search?part=id&type=video&q='+keyword+'&key=AIzaSyDNhtqfdYgOAM8tTiNSAcUWv3cFAkrN5u8')
+                id = 'https://www.youtube.com/watch?v='+videos.data.items[0].id.videoId;
+            }
 
-            await user.playlist[playlistIndex].songs.push(TASK[1]);
+            await user.playlist[playlistIndex].songs.push(id);
             message.channel.send('Successfully added to show playlist type `'+PREFIX+' playlists show PLAYLIST_NAME`');
             await user.save();
         } else if(CMD_NAME === 'playlists') {
@@ -640,70 +600,6 @@ client.on('message', async message =>{
     }
 });
 
-client.on('messageReactionAdd',(reaction,user)=> {
-    const { name } = reaction.emoji;
-    const member = reaction.message.guild.members.cache.get(user.id)
-
-    if(reaction.message.id === '749295738923515994') {
-        switch (name) {
-            case '🐶':
-                member.roles.add('749291588722622575');
-                break;
-            case '🦁':
-                member.roles.add('749291660378374285');
-                break;
-            case '🐯':
-                member.roles.add('749291723720491088');
-                break;
-            case '🐴':
-                member.roles.add('749291825390420089');
-                break;
-            case '🐘':
-                member.roles.add('749292191045910762')
-                break;
-            case '🦊':
-                member.roles.add('749291960166252664')
-                break;
-        
-            default:
-                break;
-        }
-    }
-})
-
-client.on('messageReactionRemove',(reaction,user)=> {
-    console.log('Hello');
-    const { name } = reaction.emoji;
-    const member = reaction.message.guild.members.cache.get(user.id)
-
-    if(reaction.message.id === '749295738923515994') {
-        switch (name) {
-            case '🐶':
-                member.roles.remove('749291588722622575');
-                break;
-            case '🦁':
-                member.roles.remove('749291660378374285');
-                break;
-            case '🐯':
-                member.roles.remove('749291723720491088');
-                break;
-            case '🐴':
-                member.roles.remove('749291825390420089');
-                break;
-            case '🐘':
-                member.roles.remove('749292191045910762')
-                break;
-            case '🦊':
-                member.roles.remove('749291960166252664')
-                break;
-        
-            default:
-                break;
-        }
-    }
-})
-
-
 async function play(connection,message,numberOfSong) {
     let server = servers[message.guild.id];
     console.log(server.queue[numberOfSong],numberOfSong);
@@ -715,9 +611,15 @@ async function play(connection,message,numberOfSong) {
     const id = getYoutubeId(server.queue[numberOfSong]);
     console.log(id);
     
-    const videoDetails = await axios.get(`https://www.googleapis.com/youtube/v3/videos?part=id%2C+snippet&id=${id}&key=AIzaSyDNhtqfdYgOAM8tTiNSAcUWv3cFAkrN5u8`);
-    const title = await videoDetails.data.items[0]?.snippet?.localized?.title;
-    console.log(title);
+    let title;
+    try {
+        const videoDetails = await axios.get(`https://www.googleapis.com/youtube/v3/videos?part=id%2C+snippet&id=${id}&key=AIzaSyDNhtqfdYgOAM8tTiNSAcUWv3cFAkrN5u8`);
+        title = await videoDetails.data.items[0]?.snippet?.localized?.title;
+        console.log(title);
+    } catch (error) {
+        title = 'Playing next song';
+    }
+    
 
     nowPlaying = numberOfSong;
     const messageEmbed = new MessageEmbed()

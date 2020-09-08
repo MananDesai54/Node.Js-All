@@ -1,0 +1,67 @@
+1. meme => if(TASK.length === 0) {
+        message.reply('Coming just a second');
+        memeAsync()
+            .then(meme => {
+                messageEmbed = new MessageEmbed()
+                        .setURL(meme.url)
+                        .setColor('ff00ff')
+                        .setTitle(`r\\${meme.subreddit}`)
+                        .setImage(meme.url);
+    
+                message.channel.send(messageEmbed);
+            })
+            .catch(err => {
+                message.reply("Network error or i don't know")
+            })
+    } else {
+        memeAsync(TASK.join(' '))
+            .then(meme => {
+                message.reply('Coming just a second');
+                messageEmbed = new MessageEmbed()
+                        .setURL(meme.url)
+                        .setColor('ff00ff')
+                        .setTitle(`r\\${meme.subreddit}`)
+                        .setDescription(TASK.join(' '))
+                        .setImage(meme.url);
+    
+                message.channel.send(messageEmbed);
+            })
+            .catch(err => {
+                message.reply('Invalid subreddit');
+            })
+}
+
+2. play => // axios('https://api.spotify.com/v1/search?q=closer&type=track',{
+            //     headers:{
+            //         Authorization:process.env.SPOTIFY_API_KEY
+            //     }
+            // }).then(res => console.log(res));
+
+3. roles => // const { name } = reaction.emoji;
+    // const member = reaction.message.guild.members.cache.get(user.id)
+
+    // if(reaction.message.id === '749295738923515994') {
+    //     switch (name) {
+    //         case '🐶':
+    //             member.roles.remove('749291588722622575');
+    //             break;
+    //         case '🦁':
+    //             member.roles.remove('749291660378374285');
+    //             break;
+    //         case '🐯':
+    //             member.roles.remove('749291723720491088');
+    //             break;
+    //         case '🐴':
+    //             member.roles.remove('749291825390420089');
+    //             break;
+    //         case '🐘':
+    //             member.roles.remove('749292191045910762')
+    //             break;
+    //         case '🦊':
+    //             member.roles.remove('749291960166252664')
+    //             break;
+        
+    //         default:
+    //             break;
+    //     }
+    // }
