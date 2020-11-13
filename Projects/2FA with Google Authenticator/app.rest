@@ -1,0 +1,11 @@
+POST http://localhost:5000/api/register
+
+###
+
+POST http://localhost:5000/api/verify
+Content-Type: application/json
+
+{
+    "id": "773f650b-e739-4832-b6ed-cb6a2793bde1",
+    "token": "684188"
+}
